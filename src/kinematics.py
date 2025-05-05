@@ -14,7 +14,7 @@ def forward_kinematics(Vm: float, theta: float, t: float, g: float = 9.81
     return dx, dy
 
 def solve_theta_time(dx: float, dy: float, Vm: float, g: float = 9.81
-                    ) -> List[Tuple[float, float]]:
+                    ) -> Tuple[Tuple[float, float], Tuple[float, float]] | None:
     """
     Solve for the two possible (theta, t) pairs that satisfy:
       dx = Vm*cos(theta)*t
@@ -26,7 +26,7 @@ def solve_theta_time(dx: float, dy: float, Vm: float, g: float = 9.81
     # Discriminant under the radical
     disc = Vm**4 - 2 * Vm**2 * dy * g - (dx * g)**2
     if disc < 0:
-        return []  # no real solutions
+        return None  # no real solutions
 
     sqrt_disc = math.sqrt(disc)
 
@@ -38,4 +38,4 @@ def solve_theta_time(dx: float, dy: float, Vm: float, g: float = 9.81
     theta2 = math.atan((Vm**2 + sqrt_disc) / (dx * g))
     t2 = dx / (Vm * math.cos(theta2))
 
-    return [(theta1, t1), (theta2, t2)]
+    return ((theta1, t1), (theta2, t2))
