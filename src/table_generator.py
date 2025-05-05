@@ -1,4 +1,3 @@
-
 # table_generator.py
 import argparse
 import math
@@ -6,13 +5,20 @@ import random
 import statistics
 from kinematics import solve_theta_time
 
-def make_table(samples: int,
-               vm_min: float,
-               vm_max: float,
-               fmt: str) -> None:
+def make_table(
+    samples: int,
+    vm_min: float,
+    vm_max: float,
+    dx_min: int,
+    dx_max: int,
+    dx_step: int,
+    dy_min: int,
+    dy_max: int,
+    fmt: str
+) -> None:
     """
     Generate and print per-dx relative-angle and time stats
-    in either CSV or Markdown format.
+    in either CSV or Markdown format, with configurable dx/dy.
     """
     headers = [
         "Dx",
@@ -30,11 +36,11 @@ def make_table(samples: int,
         print("|" + "|".join(["---"] * len(headers)) + "|")
 
     # Iterate dx values
-    for dx in range(10, 95, 5):  # 10, 15, ..., 90
+    for dx in range(dx_min, dx_max + 1, dx_step):
         rel_angles = []
-        t_vals = []
+        t_vals     = []
 
-        for dy in range(-5, 6):  # -5, -4, ..., 5
+        for dy in range(dy_min, dy_max + 1):
             aim_dir_deg = math.degrees(math.atan2(dy, dx))
             for _ in range(samples):
                 Vm = random.uniform(vm_min, vm_max)
@@ -47,14 +53,14 @@ def make_table(samples: int,
                 rel_angles.append(shot_deg - aim_dir_deg)
                 t_vals.append(t1)
 
-        # No valid samples?
+        # Prepare row
         if not rel_angles:
             row = [str(dx)] + ["NA"] * (len(headers) - 1)
         else:
             mean_rel = statistics.mean(rel_angles)
-            std_rel = statistics.stdev(rel_angles) if len(rel_angles) > 1 else 0.0
-            mean_t = statistics.mean(t_vals)
-            std_t = statistics.stdev(t_vals) if len(t_vals) > 1 else 0.0
+            std_rel  = statistics.stdev(rel_angles) if len(rel_angles) > 1 else 0.0
+            mean_t   = statistics.mean(t_vals)
+            std_t    = statistics.stdev(t_vals)     if len(t_vals)  > 1 else 0.0
             row = [
                 str(dx),
                 f"{mean_rel:.4f}",
@@ -93,6 +99,36 @@ if __name__ == "__main__":
         help="maximum Vm for sampling"
     )
     parser.add_argument(
+        "--dx-min",
+        type=int,
+        default=10,
+        help="minimum Dx value (inclusive)"
+    )
+    parser.add_argument(
+        "--dx-max",
+        type=int,
+        default=90,
+        help="maximum Dx value (inclusive)"
+    )
+    parser.add_argument(
+        "--dx-step",
+        type=int,
+        default=5,
+        help="step size for Dx"
+    )
+    parser.add_argument(
+        "--dy-min",
+        type=int,
+        default=-5,
+        help="minimum Dy value (inclusive)"
+    )
+    parser.add_argument(
+        "--dy-max",
+        type=int,
+        default=5,
+        help="maximum Dy value (inclusive)"
+    )
+    parser.add_argument(
         "--format", "-f",
         choices=["csv", "md"],
         default="csv",
@@ -104,5 +140,10 @@ if __name__ == "__main__":
         samples=args.samples,
         vm_min=args.vm_min,
         vm_max=args.vm_max,
+        dx_min=args.dx_min,
+        dx_max=args.dx_max,
+        dx_step=args.dx_step,
+        dy_min=args.dy_min,
+        dy_max=args.dy_max,
         fmt=args.format,
     )
