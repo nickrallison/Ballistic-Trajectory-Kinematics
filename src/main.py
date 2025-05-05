@@ -1,78 +1,68 @@
-import numpy as np
+import math
+from typing import List, Tuple
 
-def solve_theta(Vm, dx, dy, g=9.81):
-    # Implements the full 4-branch solution for θ
-    Vm2 = Vm**2
-    dx2 = dx**2
-    A = -dx2 * g**2 - 2 * dy * Vm2 * g + Vm2**2
+def forward_kinematics(Vm: float, theta: float, t: float, g: float = 9.81) -> Tuple[float, float]:
+    """
+    Given muzzle velocity Vm, launch angle theta (rad), time t and gravity g,
+    compute horizontal and vertical displacements Δx and Δy.
+    """
+    dx = Vm * math.cos(theta) * t
+    dy = Vm * math.sin(theta) * t - 0.5 * g * t * t
+    return dx, dy
 
-    thetas = []
-    if A < 0:
-        # No real solutions for sqrt(A)
-        return thetas
+def solve_theta_time(dx: float, dy: float, Vm: float, g: float = 9.81
+                    ) -> List[Tuple[float, float]]:
+    """
+    Solve for the two possible (theta, t) pairs that satisfy:
+      dx = Vm*cos(theta)*t
+      dy = Vm*sin(theta)*t - 0.5*g*t^2
 
-    sqrtA = np.sqrt(A)
-    denom = dx2 * g + 2 * dy * Vm2
+    Returns a list of (theta, t) in radians and seconds. If no real solution
+    exists, returns an empty list.
+    """
+    # Discriminant under the radical
+    disc = Vm**4 - 2*Vm**2*dy*g - (dx * g)**2
+    if disc < 0:
+        return []  # no real solutions
 
-    # ± for sqrtA
-    for sign1 in [+1, -1]:
-        inner = Vm2 + sign1 * sqrtA
-        # ± for outer sqrt
-        B = dx2 * inner**2 + (dx2 * g + 2 * dy * Vm2)**2
-        if B < 0:
-            continue
-        sqrtB = np.sqrt(B)
-        for sign2 in [+1, -1]:
-            num = dx * inner + sign2 * sqrtB
-            # Avoid division by zero
-            if denom == 0:
-                continue
-            theta = -2 * np.arctan(num / denom)
-            theta_deg = np.degrees(theta)
-            # Only keep real, physical angles (0 < θ < 90)
-            if 0 < theta_deg < 90:
-                thetas.append(theta_deg)
-    # Remove duplicates (can happen due to symmetry)
-    thetas = list(sorted(set([round(t, 8) for t in thetas])))
-    return thetas
+    sqrt_disc = math.sqrt(disc)
 
-def check_solution(Vm, dx, dy, theta_deg, g=9.81):
-    # Plug θ back into the original equations to check
-    theta = np.radians(theta_deg)
-    Vx = Vm * np.cos(theta)
-    Vy = Vm * np.sin(theta)
-    # Quadratic formula for t: y = Vy*t - 0.5*g*t^2 = dy
-    # 0.5*g*t^2 - Vy*t + dy = 0
-    a = 0.5 * g
-    b = -Vy
-    c = dy
-    discriminant = b**2 - 4*a*c
-    if discriminant < 0:
-        print(f"No real time solution for θ = {theta_deg:.2f}°")
-        return None
-    t1 = (-b + np.sqrt(discriminant)) / (2*a)
-    t2 = (-b - np.sqrt(discriminant)) / (2*a)
-    t = t1 if t1 > 0 else t2
-    x_check = Vx * t
-    return x_check
+    # low‐arc solution
+    theta1 = math.atan((Vm**2 - sqrt_disc) / (dx * g))
+    t1 = math.sqrt(2) * math.sqrt(Vm**2 - dy*g - sqrt_disc) / g
+
+    # high‐arc solution
+    theta2 = math.atan((Vm**2 + sqrt_disc) / (dx * g))
+    t2 = math.sqrt(2) * math.sqrt(Vm**2 - dy*g + sqrt_disc) / g
+
+    return [(theta1, t1), (theta2, t2)]
+
+def verify(dx: float, dy: float, Vm: float, g: float = 9.81) -> None:
+    """
+    Solve for theta & t, then plug back into forward kinematics to verify
+    that we recover (dx, dy).
+    """
+    solutions = solve_theta_time(dx, dy, Vm, g)
+    if not solutions:
+        print("No real solutions for the given parameters.")
+        return
+
+    for i, (theta, t) in enumerate(solutions, start=1):
+        dx_calc, dy_calc = forward_kinematics(Vm, theta, t, g)
+        print(f"Solution #{i}:")
+        print(f"  theta (deg) = {math.degrees(theta):.4f}")
+        print(f"  time        = {t:.4f} s")
+        print(f"  → Δx = {dx_calc:.4f} (target {dx:.4f})")
+        print(f"  → Δy = {dy_calc:.4f} (target {dy:.4f})")
+        print()
 
 if __name__ == "__main__":
-    # Example values
-    Vm = 90.0      # m/s
-    dx = 50.0      # meters
-    dy = 3.0       # meters (target is 2m above muzzle)
-    g = 9.81
+    # Example parameters
+    Vm_input = 90.0      # muzzle velocity in m/s
+    dx_target = 50.0    # horizontal displacement in m
+    dy_target =  20.0    # vertical displacement in m
+    g_const   =  9.81    # gravity in m/s^2
 
-    thetas = solve_theta(Vm, dx, dy, g)
-    if not thetas:
-        print("No real θ solutions for these parameters.")
-    else:
-        print(f"Possible θ (degrees): {', '.join(f'{t:.4f}' for t in thetas)}")
-        # Check the solution by plugging back
-        tol = 1e-2  # 1 cm tolerance
-        for theta_deg in thetas:
-            x_check = check_solution(Vm, dx, dy, theta_deg, g)
-            if x_check is not None and abs(x_check - dx) < tol:
-                print(f"VALID: θ = {theta_deg:.4f}°, x_check = {x_check:.4f} m")
-            else:
-                print(f"INVALID: θ = {theta_deg:.4f}°, x_check = {x_check:.4f} m")
+    print("Forward‐solve and verify for:")
+    print(f"  Vm = {Vm_input} m/s, Δx = {dx_target} m, Δy = {dy_target} m\n")
+    verify(dx_target, dy_target, Vm_input, g_const)
